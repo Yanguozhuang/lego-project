@@ -1,103 +1,373 @@
+/* src/style.css */
+
 :root {
-    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-    font-weight: 400;
+    /* 配色方案：赛博朋克 + 乐高经典色 */
+    --bg-dark: #050505;
+    --bg-panel: #111;
+    --text-main: #e0e0e0;
+    --text-dim: #666;
 
-    color-scheme: light dark;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #242424;
+    --lego-red: #D13429;
+    --lego-blue: #006CB7;
+    --lego-yellow: #FNC700;
+    --lego-green: #298943;
 
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    --neon-cyan: #00f3ff;
+    --neon-pink: #bc13fe;
+
+    --glass-bg: rgba(20, 20, 20, 0.7);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-a {
-    font-weight: 500;
-    color: #646cff;
-    text-decoration: inherit;
-}
-
-a:hover {
-    color: #535bf2;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-    margin: 0;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    /* 像APP一样不可滚动 */
+    height: 100vh;
+    width: 100vw;
+}
+
+/* =========================================
+   1. LOADING LAYER (启动层)
+   ========================================= */
+#loading-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
+    z-index: 9999;
     display: flex;
-    place-items: center;
-    min-width: 320px;
-    min-height: 100vh;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.8s ease;
 }
 
-h1 {
-    font-size: 3.2em;
-    line-height: 1.1;
-}
-
-#app {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 2rem;
+.loader-box {
     text-align: center;
+    width: 400px;
 }
 
-.logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: filter 300ms;
+/* 故障文字特效 */
+.glitch {
+    font-size: 4rem;
+    font-weight: 700;
+    position: relative;
+    color: var(--text-main);
+    letter-spacing: 5px;
+    margin-bottom: 20px;
 }
 
-.logo:hover {
-    filter: drop-shadow(0 0 2em #646cffaa);
+.glitch::before,
+.glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
 }
 
-.logo.vanilla:hover {
-    filter: drop-shadow(0 0 2em #f7df1eaa);
+.glitch::before {
+    left: 2px;
+    text-shadow: -1px 0 var(--lego-red);
+    clip: rect(24px, 550px, 90px, 0);
+    animation: glitch-anim 3s infinite linear alternate-reverse;
 }
 
-.card {
-    padding: 2em;
+.glitch::after {
+    left: -2px;
+    text-shadow: -1px 0 var(--lego-blue);
+    clip: rect(85px, 550px, 140px, 0);
+    animation: glitch-anim 2s infinite linear alternate-reverse;
 }
 
-.read-the-docs {
-    color: #888;
+/* 乐高积木跳动动画 */
+.lego-anim {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 30px;
 }
 
-button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    background-color: #1a1a1a;
+.brick {
+    width: 30px;
+    height: 30px;
+    position: relative;
+    /* 模拟积木顶部凸起 */
+    box-shadow: inset 2px 2px 5px rgba(255, 255, 255, 0.3);
+}
+
+.brick::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 8px;
+    width: 14px;
+    height: 6px;
+    background: inherit;
+    box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.b-red {
+    background: var(--lego-red);
+    animation: bounce 1s infinite 0.1s;
+}
+
+.b-blue {
+    background: var(--lego-blue);
+    animation: bounce 1s infinite 0.2s;
+}
+
+.b-yellow {
+    background: #f5cd2f;
+    animation: bounce 1s infinite 0.3s;
+}
+
+.b-green {
+    background: var(--lego-green);
+    animation: bounce 1s infinite 0.4s;
+}
+
+/* 进度条 */
+.terminal-text {
+    font-family: monospace;
+    color: var(--neon-cyan);
+    text-align: left;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    height: 60px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 4px;
+    background: #333;
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--neon-cyan);
+    width: 0%;
+    transition: width 0.1s;
+    box-shadow: 0 0 10px var(--neon-cyan);
+}
+
+#enter-btn {
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    padding: 10px 30px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.2rem;
     cursor: pointer;
-    transition: border-color 0.25s;
+    letter-spacing: 2px;
+    transition: 0.3s;
 }
 
-button:hover {
-    border-color: #646cff;
+#enter-btn:hover {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 20px var(--neon-cyan);
 }
 
-button:focus,
-button:focus-visible {
-    outline: 4px auto -webkit-focus-ring-color;
+/* =========================================
+   2. APP LAYOUT (主布局)
+   ========================================= */
+#app {
+    display: flex;
+    height: 100vh;
+    opacity: 0;
+    transition: opacity 1s ease;
 }
 
-@media (prefers-color-scheme: light) {
-    :root {
-        color: #213547;
-        background-color: #ffffff;
+.hidden {
+    display: none !important;
+}
+
+/* 侧边栏 */
+.sidebar {
+    width: 260px;
+    background: var(--bg-panel);
+    border-right: var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 50px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+
+.logo-box {
+    width: 50px;
+    height: 50px;
+    background: var(--lego-red);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 1.5rem;
+    box-shadow: 3px 3px 0px rgba(255, 255, 255, 0.2);
+}
+
+.nav-menu {
+    list-style: none;
+}
+
+.nav-item {
+    padding: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-radius: 4px;
+}
+
+.nav-item:hover,
+.nav-item.active {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border-left: 3px solid var(--neon-cyan);
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    font-size: 0.8rem;
+    color: #555;
+}
+
+.blink {
+    animation: blink 2s infinite;
+    color: var(--lego-green);
+}
+
+/* 主视口 */
+.viewport {
+    flex: 1;
+    position: relative;
+    background: radial-gradient(circle at 50% 50%, #151515 0%, #000000 100%);
+    overflow: hidden;
+}
+
+.top-hud {
+    height: 70px;
+    border-bottom: var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+input[type=range] {
+    width: 200px;
+}
+
+/* 视图面板 */
+.view-panel {
+    position: absolute;
+    top: 70px;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 70px);
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.5s;
+    /* 核心：确保图表容器占满空间 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.view-panel.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* 玻璃拟态面板 (悬浮信息) */
+.glass-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 250px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: var(--glass-border);
+    padding: 20px;
+    border-radius: 8px;
+    color: #eee;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* =========================================
+   3. ANIMATIONS (关键帧)
+   ========================================= */
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
     }
 
-    a:hover {
-        color: #747bff;
+    50% {
+        transform: translateY(-15px);
+    }
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
     }
 
-    button {
-        background-color: #f9f9f9;
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes glitch-anim {
+    0% {
+        clip: rect(10px, 9999px, 30px, 0);
+    }
+
+    20% {
+        clip: rect(80px, 9999px, 100px, 0);
+    }
+
+    40% {
+        clip: rect(40px, 9999px, 60px, 0);
+    }
+
+    100% {
+        clip: rect(10px, 9999px, 30px, 0);
     }
 }

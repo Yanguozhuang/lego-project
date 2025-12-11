@@ -1,13 +1,106 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>lego-project</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LEGO VERSE | 乐高数据宇宙</title>
+
+  <link rel="stylesheet" href="src/style.css">
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+  <div id="loading-layer">
+    <div class="loader-box">
+      <div class="lego-anim">
+        <div class="brick b-red"></div>
+        <div class="brick b-blue"></div>
+        <div class="brick b-yellow"></div>
+        <div class="brick b-green"></div>
+      </div>
+      <h1 class="glitch" data-text="LEGO VERSE">LEGO VERSE</h1>
+      <div class="terminal-text">
+        <p>> Initializing Core Systems...</p>
+        <p>> Loading 70 Years of History...</p>
+        <p id="data-status">> Waiting for data...</p>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="load-progress"></div>
+      </div>
+      <button id="enter-btn" class="hidden">ENTER SYSTEM / 进入系统</button>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <nav class="sidebar">
+      <div class="brand">
+        <div class="logo-box">LV</div>
+        <span>DATA VIS</span>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active" data-view="galaxy" onclick="app.switchView('galaxy')">
+          <span class="icon">🌌</span>
+          <span>主题星系 (Galaxy)</span>
+        </li>
+        <li class="nav-item" data-view="river" onclick="app.switchView('river')">
+          <span class="icon">🌊</span>
+          <span>时光河流 (River)</span>
+        </li>
+        <li class="nav-item" data-view="network" onclick="app.switchView('network')">
+          <span class="icon">🕸️</span>
+          <span>关联网络 (Network)</span>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <p>SYSTEM ONLINE</p>
+        <p class="blink">● Connected</p>
+      </div>
+    </nav>
+
+    <main class="viewport">
+      <header class="top-hud">
+        <h2 id="view-title">THEME GALAXY / 扇区 A</h2>
+
+        <div class="hud-controls">
+          <div class="control-group">
+            <label>TIMELINE FILTER</label>
+            <input type="range" id="year-slider" min="1950" max="2023" value="2000">
+            <span id="year-val">2000</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="view-galaxy" class="view-panel active">
+
+        <div id="chart-galaxy"></div>
+        <div id="tooltip-galaxy" class="glass-panel hidden">
+          <h3>Hover Info</h3>
+          <p>Details will appear here...</p>
+        </div>
+      </section>
+
+      <section id="view-river" class="view-panel">
+
+        <div id="chart-river"></div>
+      </section>
+
+      <section id="view-network" class="view-panel">
+
+        <div id="chart-network"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="src/data.js"></script>
+  <script src="src/main.js"></script>
+</body>
+
 </html>
