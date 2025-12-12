@@ -136,3 +136,5 @@ console.log("✅ Data Engine Loaded: Ready for Visualization");
 
 with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
     f.write(js_content)
+
+print(f"✅ 成功！请检查 src/data.js，代码量应该非常巨大。")
