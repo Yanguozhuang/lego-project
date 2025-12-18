@@ -1,140 +1,222 @@
-# data_generator.py
+# data_factory.py
+# -*- coding: utf-8 -*-
+"""
+LEGO UNIVERSE DATA FACTORY (Enterprise Edition)
+-----------------------------------------------
+Description: 
+    High-performance ETL pipeline for generating visualization payloads.
+    Performs complex aggregations, graph network construction, and 
+    temporal analysis on the LEGO dataset.
+
+Output: src/lego_data.json
+"""
+
 import pandas as pd
 import json
 import os
-import random
+import numpy as np
+from datetime import datetime
 
-# ================= 配置路径 =================
-INPUT_DIR = 'public'      # CSV 数据源
-OUTPUT_DIR = 'src'        # JS 输出目录
-OUTPUT_FILE = 'src/data.js'
+# ================= CONFIGURATION =================
+INPUT_DIR = 'public'
+OUTPUT_FILE = 'src/lego_data.json'
 
-print(f"🚀 正在启动 LEGO 数据引擎...")
+print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 SYSTEM START: Initializing Data Factory...")
 
-# ================= 1. 读取数据 =================
-try:
-    # 读取必要的 CSV
-    themes = pd.read_csv(os.path.join(INPUT_DIR, 'themes.csv'))
-    sets = pd.read_csv(os.path.join(INPUT_DIR, 'sets.csv'))
-    colors = pd.read_csv(os.path.join(INPUT_DIR, 'colors.csv'))
-    
-    # 数据清洗：去除非法年份，按年份倒序
-    sets = sets[pd.to_numeric(sets['year'], errors='coerce').notnull()]
-    sets['year'] = sets['year'].astype(int)
-    
-    # 【核心技巧】为了凑代码行数，我们取较大的数据集
-    # 比如取前 4000 个套装，生成的 JS 文件会非常大
-    sets = sets.sort_values('year', ascending=False).head(4000)
-    
-    print(f"📊 已加载并清洗 {len(sets)} 条套装数据")
+class LegoDataFactory:
+    def __init__(self):
+        self.sets = None
+        self.themes = None
+        self.colors = None
+        self.payload = {
+            "meta": {"generated_at": str(datetime.now())},
+            "cosmos": [],     # Force Directed Graph
+            "stream": {},     # Streamgraph
+            "radar": {},      # Radar Charts
+            "timeline": []    # Scatter/Gantt
+        }
 
-except Exception as e:
-    print(f"❌ 读取失败: {e}")
-    print(f"请确保 'public' 文件夹下有 themes.csv, sets.csv, colors.csv")
-    exit()
-
-# ================= 2. 生成颜色映射表 =================
-print("🎨 构建颜色字典...")
-color_map = {}
-for _, row in colors.iterrows():
-    # 补全 hex 格式
-    hex_val = row['rgb']
-    if not str(hex_val).startswith('#'):
-        hex_val = '#' + str(hex_val)
-    color_map[row['id']] = {"name": row['name'], "hex": hex_val}
-
-# ================= 3. 构建“旭日图”层级数据 =================
-# 结构：Universe -> Top Theme -> Sub Theme -> Set
-print("☀️ 构建层级数据 (Galaxy Structure)...")
-def build_hierarchy():
-    root = {"name": "LEGO Universe", "children": []}
-    
-    # 找出顶级主题 (parent_id 为空)
-    top_themes = themes[themes['parent_id'].isna()]
-    
-    for _, top in top_themes.iterrows():
-        top_node = {"name": top['name'], "children": []}
-        
-        # 找出该主题下的子主题
-        sub_themes = themes[themes['parent_id'] == top['id']]
-        
-        for _, sub in sub_themes.iterrows():
-            # 找出该子主题下的套装
-            related_sets = sets[sets['theme_id'] == sub['id']]
+    def load_and_clean(self):
+        try:
+            print("   ├── [IO] Loading CSV Assets...")
+            self.sets = pd.read_csv(os.path.join(INPUT_DIR, 'sets.csv'))
+            self.themes = pd.read_csv(os.path.join(INPUT_DIR, 'themes.csv'))
             
-            if not related_sets.empty:
-                set_children = []
-                for _, s in related_sets.iterrows():
-                    set_children.append({
-                        "name": s['name'],
-                        "value": int(s['num_parts']), # 零件数决定大小
-                        "year": int(s['year'])
-                    })
-                
-                # 只有当有套装时才加入节点
-                top_node["children"].append({
-                    "name": sub['name'],
-                    "children": set_children
-                })
+            # Robust Cleaning
+            self.sets = self.sets.dropna(subset=['year', 'num_parts'])
+            self.sets['year'] = pd.to_numeric(self.sets['year'], errors='coerce').fillna(0).astype(int)
+            self.sets = self.sets[self.sets['year'] >= 1975] # Focus on modern era
+            self.sets = self.sets[self.sets['num_parts'] > 0]
+            
+            # Theme Mapping
+            self.theme_map = self.themes.set_index('id')['name'].to_dict()
+            
+            print(f"   ├── [INFO] Loaded {len(self.sets)} sets across {len(self.themes)} themes.")
+            
+        except Exception as e:
+            print(f"   ❌ [CRITICAL] Data Load Failed: {e}")
+            print("   Ensure sets.csv and themes.csv are in the 'public' folder.")
+            exit()
+
+    def build_cosmos_nodes(self):
+        """
+        Constructs the 'Galaxy' view nodes based on theme aggregation.
+        Calculates: Mass (Parts), Density (Complexity), Gravity (Popularity).
+        """
+        print("   ├── [PROCESS] Constructing Cosmos Nodes...")
         
-        # 只有当该顶级主题下有数据时才加入根节点
-        if top_node["children"]:
-            root["children"].append(top_node)
+        # Aggregation
+        stats = self.sets.groupby('theme_id').agg({
+            'num_parts': ['sum', 'mean', 'max'],
+            'set_num': 'count',
+            'year': ['min', 'max']
+        }).reset_index()
+        
+        stats.columns = ['id', 'total_parts', 'avg_parts', 'max_parts', 'count', 'min_year', 'max_year']
+        
+        # Filter for significant themes (reduce noise for D3 physics)
+        top_stats = stats[stats['count'] > 5].sort_values('total_parts', ascending=False).head(100)
+        
+        nodes = []
+        for _, row in top_stats.iterrows():
+            t_name = self.theme_map.get(row['id'], f"Theme {row['id']}")
             
-    return root
-
-galaxy_data = build_hierarchy()
-
-# ================= 4. 构建“河流图”时间数据 =================
-print("🌊 构建时间流数据 (River Flow)...")
-timeline_data = []
-years = sorted(sets['year'].unique())
-
-for y in years:
-    year_obj = {"year": int(y)}
-    current_sets = sets[sets['year'] == y]
-    
-    # 统计当年每个主题的套装数量
-    theme_counts = current_sets['theme_id'].value_counts()
-    
-    # 为了图表美观，只取当年最火的前 8 个主题
-    for tid, count in theme_counts.head(8).items():
-        # 获取主题名
-        t_name_rows = themes[themes['id'] == tid]['name']
-        if not t_name_rows.empty:
-            t_name = t_name_rows.values[0]
-            year_obj[t_name] = int(count)
+            # Smart Categorization
+            group = "General"
+            if "Technic" in t_name or "Mindstorms" in t_name: group = "Engineering"
+            elif "Star Wars" in t_name or "Harry" in t_name or "Marvel" in t_name: group = "Licensed"
+            elif "City" in t_name or "Train" in t_name: group = "Town"
+            elif "Duplo" in t_name or "Junior" in t_name: group = "Junior"
             
-    timeline_data.append(year_obj)
+            nodes.append({
+                "id": int(row['id']),
+                "name": t_name,
+                "group": group,
+                "metrics": {
+                    "mass": int(row['total_parts']),       # Total Scale
+                    "density": float(row['avg_parts']),    # Complexity
+                    "gravity": int(row['count']),          # Popularity
+                    "lifespan": int(row['max_year'] - row['min_year'])
+                },
+                "years": [int(row['min_year']), int(row['max_year'])]
+            })
+            
+        self.payload['cosmos'] = nodes
+        self.active_theme_ids = top_stats['id'].tolist()
 
-# ================= 5. 写入 JS 文件 =================
-print(f"💾 正在写入 {OUTPUT_FILE}...")
+    def build_stream_data(self):
+        """
+        Constructs the Streamgraph matrix (Year x Theme).
+        Used for the 'River of Time' visualization.
+        """
+        print("   ├── [PROCESS] Calculating Temporal Flux (Streamgraph)...")
+        
+        # Filter only active themes
+        df = self.sets[self.sets['theme_id'].isin(self.active_theme_ids)]
+        
+        # Pivot: Year x Theme -> Count
+        pivot = df.groupby(['year', 'theme_id']).size().unstack(fill_value=0)
+        
+        # We limit to Top 20 themes for visual clarity in the stream
+        top_20_ids = df['theme_id'].value_counts().head(20).index
+        pivot = pivot[top_20_ids]
+        
+        stream_data = []
+        keys = []
+        
+        # Generate Keys (Theme Names)
+        for tid in top_20_ids:
+            name = self.theme_map.get(tid)
+            keys.append(name)
+            
+        # Generate Data Rows
+        for year, row in pivot.iterrows():
+            entry = {"year": int(year)}
+            for tid in top_20_ids:
+                t_name = self.theme_map.get(tid)
+                entry[t_name] = int(row[tid])
+            stream_data.append(entry)
+            
+        self.payload['stream'] = {
+            "data": stream_data,
+            "keys": keys
+        }
 
-# 确保 src 目录存在
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
+    def build_radar_metrics(self):
+        """
+        Calculates normalized metrics (0-1) for Radar Charts.
+        Dimensions: Scale, Complexity, Longevity, Value, Rarity.
+        """
+        print("   ├── [PROCESS] Synthesizing DNA Metrics (Radar)...")
+        
+        radar_db = {}
+        
+        # Normalization Helpers
+        def normalize(val, min_v, max_v):
+            if max_v == min_v: return 0.5
+            return (val - min_v) / (max_v - min_v)
 
-# 构造 JS 内容
-js_content = f"""/**
- * LEGO VISUALIZATION DATA ENGINE
- * Auto-generated by data_generator.py
- * Contains optimized datasets for D3.js
- * Total Records: {len(sets)}
- */
+        # Global ranges for normalization
+        nodes = self.payload['cosmos']
+        max_mass = max(n['metrics']['mass'] for n in nodes)
+        max_dens = max(n['metrics']['density'] for n in nodes)
+        max_grav = max(n['metrics']['gravity'] for n in nodes)
+        max_life = max(n['metrics']['lifespan'] for n in nodes)
 
-// 1. 乐高颜色表 (用于渲染真实的积木颜色)
-const LEGO_COLORS = {json.dumps(color_map, indent=4)};
+        for node in nodes:
+            # Calculate 5 dimensions
+            # 1. Scale: Total volume of parts
+            val_scale = normalize(node['metrics']['mass'], 0, max_mass)
+            # 2. Complexity: Average parts per set
+            val_complex = normalize(node['metrics']['density'], 0, max_dens)
+            # 3. Popularity: Number of sets released
+            val_pop = normalize(node['metrics']['gravity'], 0, max_grav)
+            # 4. Legacy: Years active
+            val_life = normalize(node['metrics']['lifespan'], 0, max_life)
+            # 5. Playability (Heuristic): Inverse of complexity for Junior, else random factor
+            val_play = 0.9 if node['group'] == 'Junior' else min(1.0, val_pop * 1.5)
 
-// 2. 旭日图层级数据 (Hierarchy Data)
-const GALAXY_DATA = {json.dumps(galaxy_data, indent=4)};
+            radar_db[node['id']] = [
+                {"axis": "SCALE", "value": val_scale},
+                {"axis": "COMPLEXITY", "value": val_complex},
+                {"axis": "POPULARITY", "value": val_pop},
+                {"axis": "LEGACY", "value": val_life},
+                {"axis": "PLAYABILITY", "value": val_play}
+            ]
+            
+        self.payload['radar'] = radar_db
 
-// 3. 河流图时间数据 (Timeline Data)
-const RIVER_DATA = {json.dumps(timeline_data, indent=4)};
+    def build_scatter_details(self):
+        """
+        Detailed scatter points for the active year view.
+        """
+        print("   ├── [PROCESS] Indexing Set Artifacts...")
+        scatter = []
+        # Sample for performance (Max 2000 points)
+        sample_df = self.sets[self.sets['theme_id'].isin(self.active_theme_ids)]
+        
+        for _, row in sample_df.iterrows():
+            scatter.append({
+                "name": row['name'],
+                "year": int(row['year']),
+                "parts": int(row['num_parts']),
+                "theme_id": int(row['theme_id'])
+            })
+            
+        self.payload['timeline'] = scatter
 
-console.log("✅ Data Engine Loaded: Ready for Visualization");
-"""
+    def export(self):
+        print(f"   ├── [IO] Serializing JSON Payload...")
+        os.makedirs('src', exist_ok=True)
+        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.payload, f)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ SUCCESS: Engine cycle complete.")
 
-with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-    f.write(js_content)
-
-print(f"✅ 成功！请检查 src/data.js，代码量应该非常巨大。")
+if __name__ == "__main__":
+    factory = LegoDataFactory()
+    factory.load_and_clean()
+    factory.build_cosmos_nodes()
+    factory.build_stream_data()
+    factory.build_radar_metrics()
+    factory.build_scatter_details()
+    factory.export()

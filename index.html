@@ -3,103 +3,85 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LEGO VERSE | 乐高数据宇宙</title>
-
+  <title>LegoVerse - Deep Insights</title>
   <link rel="stylesheet" href="src/style.css">
-
   <script src="https://d3js.org/d3.v7.min.js"></script>
-
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
+  <div id="loading">
+    <div class="loader"></div>
+    <div class="loading-text">正在构建乐高多维宇宙...</div>
+  </div>
 
-  <div id="loading-layer">
-    <div class="loader-box">
-      <div class="lego-anim">
-        <div class="brick b-red"></div>
-        <div class="brick b-blue"></div>
-        <div class="brick b-yellow"></div>
-        <div class="brick b-green"></div>
+  <div class="container">
+    <!-- 侧边栏：分析叙事 -->
+    <div class="sidebar">
+      <div class="header">
+        <h1>LEGO <span class="highlight">INSIGHTS</span></h1>
+        <p>1950-2017 数据演化分析</p>
       </div>
-      <h1 class="glitch" data-text="LEGO VERSE">LEGO VERSE</h1>
-      <div class="terminal-text">
-        <p>> Initializing Core Systems...</p>
-        <p>> Loading 70 Years of History...</p>
-        <p id="data-status">> Waiting for data...</p>
+
+      <div class="controls">
+        <div class="control-group">
+          <label>分析透镜 (Perspectives)</label>
+
+          <!-- 视图 1 -->
+          <button class="btn active" onclick="switchLayout('bar')">
+            <span class="icon">📊</span>
+            <div class="btn-text">
+              <strong>Top 热门榜单</strong>
+              <small>粒子堆叠柱状图 (Stack)</small>
+            </div>
+          </button>
+
+          <!-- 视图 2 -->
+          <button class="btn" onclick="switchLayout('timeline')">
+            <span class="icon">🌊</span>
+            <div class="btn-text">
+              <strong>历史演变长河</strong>
+              <small>时间流 (Stream)</small>
+            </div>
+          </button>
+
+          <!-- 视图 3 (创新点) -->
+          <button class="btn" onclick="switchLayout('radial')">
+            <span class="icon">🌀</span>
+            <div class="btn-text">
+              <strong>复杂性星系</strong>
+              <small>极坐标螺旋 (Radial Spiral)</small>
+            </div>
+          </button>
+        </div>
       </div>
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="load-progress"></div>
+
+      <!-- 动态图例 -->
+      <div class="legend-panel">
+        <h4>主题图例 (点击高亮)</h4>
+        <div id="legend-container"></div>
       </div>
-      <button id="enter-btn" class="hidden">ENTER SYSTEM / 进入系统</button>
+
+      <div class="stats-panel">
+        <div class="stat-box">
+          <span class="stat-label">总套装数</span>
+          <span class="stat-val" id="total-count">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">当前视角</span>
+          <span class="stat-val" id="current-view-name">热门榜单</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 绘图区 -->
+    <div class="vis-container">
+      <canvas id="main-canvas"></canvas>
+      <svg id="overlay-svg"></svg> <!-- 用于绘制坐标轴 -->
+      <div id="tooltip" class="tooltip"></div>
     </div>
   </div>
 
-  <div id="app" class="hidden">
-
-    <nav class="sidebar">
-      <div class="brand">
-        <div class="logo-box">LV</div>
-        <span>DATA VIS</span>
-      </div>
-
-      <ul class="nav-menu">
-        <li class="nav-item active" data-view="galaxy" onclick="app.switchView('galaxy')">
-          <span class="icon">🌌</span>
-          <span>主题星系 (Galaxy)</span>
-        </li>
-        <li class="nav-item" data-view="river" onclick="app.switchView('river')">
-          <span class="icon">🌊</span>
-          <span>时光河流 (River)</span>
-        </li>
-        <li class="nav-item" data-view="network" onclick="app.switchView('network')">
-          <span class="icon">🕸️</span>
-          <span>关联网络 (Network)</span>
-        </li>
-      </ul>
-
-      <div class="sidebar-footer">
-        <p>SYSTEM ONLINE</p>
-        <p class="blink">● Connected</p>
-      </div>
-    </nav>
-
-    <main class="viewport">
-      <header class="top-hud">
-        <h2 id="view-title">THEME GALAXY / 扇区 A</h2>
-
-        <div class="hud-controls">
-          <div class="control-group">
-            <label>TIMELINE FILTER</label>
-            <input type="range" id="year-slider" min="1950" max="2023" value="2000">
-            <span id="year-val">2000</span>
-          </div>
-        </div>
-      </header>
-
-      <section id="view-galaxy" class="view-panel active">
-
-        <div id="chart-galaxy"></div>
-        <div id="tooltip-galaxy" class="glass-panel hidden">
-          <h3>Hover Info</h3>
-          <p>Details will appear here...</p>
-        </div>
-      </section>
-
-      <section id="view-river" class="view-panel">
-
-        <div id="chart-river"></div>
-      </section>
-
-      <section id="view-network" class="view-panel">
-
-        <div id="chart-network"></div>
-      </section>
-    </main>
-  </div>
-
-  <script src="src/data.js"></script>
   <script src="src/main.js"></script>
 </body>
 
