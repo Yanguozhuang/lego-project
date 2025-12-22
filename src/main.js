@@ -54,7 +54,7 @@ async function init() {
 
     } catch (e) {
         console.error(e);
-        alert("数据加载失败，请检查 public 文件夹");
+        alert("数据加载失败，请检查 public 文件夹中是否存在 sets.csv 和 themes.csv 文件。");
     }
 }
 
@@ -75,12 +75,9 @@ function processData(sets, themes) {
         return t ? t.name : "Other";
     };
 
-    // 筛选数据：保证图表好看，去除极少量的噪点数据
     let rawSets = sets.filter(s => +s.year >= 1970 && +s.num_parts > 0);
-    rawSets.sort((a, b) => +a.year - +b.year); // 按年份排序，这样渲染时有次序感
+    rawSets.sort((a, b) => +a.year - +b.year);
 
-    // 采样：为了动画极其流畅，保持在 4000 个粒子左右
-    // 如果想要更多粒子，可以增大这个数字，但要考虑电脑性能
     const maxParticles = 4000;
     if (rawSets.length > maxParticles) {
         rawSets = rawSets.filter((d, i) => i % Math.ceil(rawSets.length / maxParticles) === 0);
@@ -92,18 +89,16 @@ function processData(sets, themes) {
         year: +d.year,
         parts: +d.num_parts,
         theme: getRoot(d.theme_id),
-        // 物理属性
-        x: width / 2, y: height / 2, // 当前位置
-        tx: width / 2, ty: height / 2, // 目标位置
-        r: 3, // 半径
+        x: width / 2, y: height / 2,
+        tx: width / 2, ty: height / 2,
+        r: 3,
         alpha: 1
     }));
 
-    // 统计 Top 主题
     const themeCounts = d3.rollup(state.sets, v => v.length, d => d.theme);
     state.themeStats = Array.from(themeCounts, ([key, count]) => ({ key, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 8); // Top 8
+        .slice(0, 8);
 
     const topThemes = state.themeStats.map(d => d.key);
     state.colorScale = d3.scaleOrdinal().domain(topThemes).range(colors).unknown("#4b5563");
@@ -113,13 +108,12 @@ function processData(sets, themes) {
 }
 
 // ============================================================================
-// 3. 布局算法 (The "Innovation" Part)
+// 3. 布局算法
 // ============================================================================
 
 window.switchLayout = function (mode) {
     state.currentLayout = mode;
 
-    // UI更新
     if (window.event) {
         document.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
         window.event.currentTarget.closest(".btn").classList.add("active");
@@ -128,106 +122,132 @@ window.switchLayout = function (mode) {
     const names = { 'bar': 'Top 热门榜单', 'timeline': '历史演变长河', 'radial': '复杂性星系' };
     document.getElementById("current-view-name").innerText = names[mode];
 
-    // 清空 SVG
     d3.select("#overlay-svg").selectAll("*").remove();
 
     if (mode === 'bar') layoutBarChart();
     else if (mode === 'timeline') layoutTimeline();
-    else if (mode === 'radial') layoutRadial(); // 新的极坐标布局
+    else if (mode === 'radial') layoutRadial();
 
-    // 重置 Zoom (为了让用户看清全貌)
-    const svg = d3.select("#overlay-svg");
-    d3.zoom().transform(svg, d3.zoomIdentity);
     state.transform = d3.zoomIdentity;
 };
 
-// --- 布局 A: 粒子摩天大楼 (Stacked Bar) ---
 function layoutBarChart() {
     const x = d3.scaleBand()
         .domain(state.themeStats.map(d => d.key))
         .range([margin.left, width - margin.right])
         .padding(0.4);
 
-    const yBase = height - margin.bottom;
-    const piles = {}; // 记录每个柱子当前的堆叠高度
-    state.themeStats.forEach(d => piles[d.key] = 0);
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(state.themeStats, d => d.count)])
+        .range([height - margin.bottom, margin.top]); 
+    
+    const radiusScale = d3.scaleSqrt()
+        .domain([1, d3.max(state.sets, d => d.parts)])
+        .range([1.5, 12]);
+        
+    const themeCounts = new Map(state.themeStats.map(d => [d.key, d.count]));
 
     state.sets.forEach(d => {
-        if (piles[d.theme] !== undefined) {
-            d.tx = x(d.theme) + Math.random() * x.bandwidth(); // 柱子宽度内随机分布
-            // 每一个粒子占 3px 高度，模拟积木堆叠
-            d.ty = yBase - piles[d.theme] * 3;
-            piles[d.theme]++;
-            d.r = 2; // 变成小方块的感觉
+        if (themeCounts.has(d.theme)) {
+            d.r = radiusScale(d.parts);
+            const barTop = y(themeCounts.get(d.theme));
+            const barBottom = height - margin.bottom;
+            d.tx = x(d.theme) + Math.random() * x.bandwidth();
+            d.ty = barTop + Math.random() * (barBottom - barTop);   
             d.alpha = 1;
         } else {
-            // 其他主题的粒子：堆在最右边或者底部变暗
             d.tx = width - margin.right / 2 + (Math.random() - 0.5) * 50;
             d.ty = height - margin.bottom - 20;
             d.alpha = 0.1;
         }
     });
 
-    drawAxes(x, null, "LEGO Themes (Top 8)", "Set Count");
+    drawAxes(x, y, "LEGO 主题 (Top 8)", "套装数量");
 }
 
-// --- 布局 B: 时光长河 (Timeline Stream) ---
 function layoutTimeline() {
+    const topThemes = state.themeStats.map(d => d.key);
+    
+    const countsByYear = d3.rollup(state.sets, v => v.length, d => d.year, d => d.theme);
+    const years = Array.from(countsByYear.keys()).sort((a, b) => a - b);
+    
+    const streamData = years.map(year => {
+        const yearData = { year };
+        topThemes.forEach(theme => {
+            yearData[theme] = countsByYear.get(year)?.get(theme) || 0;
+        });
+        return yearData;
+    });
+
+    const stack = d3.stack()
+        .keys(topThemes)
+        .order(d3.stackOrderInsideOut)
+        .offset(d3.stackOffsetNone); // 【修正】确保从 y=0 处开始堆叠
+
+    const stackedSeries = stack(streamData);
+    
     const x = d3.scaleLinear()
-        .domain(d3.extent(state.sets, d => d.year))
+        .domain(d3.extent(years))
         .range([margin.left, width - margin.right]);
 
-    // 按主题在Y轴分层
-    const themes = state.themeStats.map(d => d.key);
-    const yScale = d3.scalePoint()
-        .domain(themes)
-        .range([margin.top, height - margin.bottom])
-        .padding(0.5);
+    const yMax = d3.max(stackedSeries, series => d3.max(series, d => d[1]));
+    const y = d3.scaleLinear()
+        .domain([0, yMax])
+        .range([height - margin.bottom, margin.top]);
+    
+    // 【新增】为粒子大小创建比例尺
+    const radiusScale = d3.scaleSqrt()
+        .domain([1, d3.max(state.sets, d => d.parts)])
+        .range([1.5, 8]); // 调整了最大半径，以适应流图
+    
+    const themePositions = {};
+    stackedSeries.forEach((series, i) => {
+        const theme = topThemes[i];
+        themePositions[theme] = {};
+        series.forEach(d => {
+            themePositions[theme][d.data.year] = [d[0], d[1]];
+        });
+    });
 
     state.sets.forEach(d => {
-        d.tx = x(d.year);
-
-        if (themes.includes(d.theme)) {
-            // 在对应主题的轨道上，加一点随机抖动 (Jitter)
-            d.ty = yScale(d.theme) + (Math.random() - 0.5) * 60;
-            d.r = 3;
-            d.alpha = 0.8;
+        if (themePositions[d.theme] && themePositions[d.theme][d.year]) {
+            const [y0, y1] = themePositions[d.theme][d.year];
+            
+            d.tx = x(d.year);
+            d.ty = y(y0) + Math.random() * (y(y1) - y(y0));
+            
+            // 【修正】粒子大小与零件数成正比
+            d.r = radiusScale(d.parts);
+            d.alpha = 0.9;
         } else {
-            d.ty = height - margin.bottom + (Math.random() - 0.5) * 20;
-            d.alpha = 0.1;
+            d.alpha = 0;
         }
     });
 
-    drawAxes(x, yScale, "Year of Release", "Themes");
+    drawAxes(x, y, "发行年份", "套装总数");
+    drawStreamAreas(x, y, stackedSeries);
 }
 
-// --- 布局 C: 复杂性星系 (Radial Spiral) - 创新点 ---
-// 极坐标：角度=年份，半径=零件数
 function layoutRadial() {
     const centerX = width / 2;
     const centerY = height / 2;
     const maxRadius = Math.min(width, height) / 2 - margin.top;
 
-    // 角度映射年份 (1970 - 2017) -> (0 - 2PI)
     const angleScale = d3.scaleLinear()
         .domain(d3.extent(state.sets, d => d.year))
-        .range([-Math.PI / 2, Math.PI * 1.5]); // 从正上方开始转一圈
+        .range([-Math.PI / 2, Math.PI * 1.5]);
 
-    // 半径映射零件数 (Log Scale) -> (50 - maxRadius)
-    // 中心留白，像黑洞
     const radiusScale = d3.scaleLog()
         .domain([1, d3.max(state.sets, d => d.parts)])
         .range([50, maxRadius]);
 
     state.sets.forEach(d => {
-        const angle = angleScale(d.year) + (Math.random() - 0.5) * 0.1; // 加一点角度抖动防止重叠
+        const angle = angleScale(d.year) + (Math.random() - 0.5) * 0.1;
         const r = radiusScale(d.parts);
 
-        // 极坐标转直角坐标
         d.tx = centerX + Math.cos(angle) * r;
         d.ty = centerY + Math.sin(angle) * r;
 
-        // 越复杂的套装，粒子越大
         d.r = Math.log(d.parts) * 0.8;
         d.alpha = 0.8;
     });
@@ -236,40 +256,71 @@ function layoutRadial() {
 }
 
 // ============================================================================
-// 4. SVG 坐标轴绘制 (信 - 保证可读性)
+// 4. SVG 坐标轴绘制
 // ============================================================================
 function drawAxes(scaleX, scaleY, labelX, labelY) {
     const svg = d3.select("#overlay-svg");
     const g = svg.append("g");
 
-    // X Axis
     const axisX = d3.axisBottom(scaleX).tickFormat(d3.format("d")).ticks(width / 80);
-    if (state.currentLayout === 'bar') axisX.tickFormat(d => d); // 柱状图显示文字
+    if (state.currentLayout === 'bar') {
+        axisX.tickFormat(d => d);
+    }
 
     g.append("g")
-        .attr("transform", `translate(0, ${height - margin.bottom + 10})`)
+        .attr("transform", `translate(0, ${height - margin.bottom})`)
         .attr("class", "axis")
         .call(axisX)
         .append("text")
-        .attr("x", width / 2).attr("y", 40).attr("class", "axis-title")
+        .attr("x", width / 2)
+        .attr("y", 50) 
+        .attr("class", "axis-title")
+        .attr("text-anchor", "middle")
         .text(labelX);
 
-    // Y Axis (Timeline only)
-    if (state.currentLayout === 'timeline') {
+    if (scaleY) {
         const axisY = d3.axisLeft(scaleY);
+        
+        if (state.currentLayout === 'bar' || state.currentLayout === 'timeline') {
+            axisY.ticks(5, d3.format("~s"));
+        }
+        
         g.append("g")
-            .attr("transform", `translate(${margin.left - 10}, 0)`)
+            .attr("transform", `translate(${margin.left}, 0)`)
             .attr("class", "axis")
-            .call(axisY);
+            .call(axisY)
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -margin.left + 20)
+            .attr("x", -(height / 2))
+            .attr("dy", "1em")
+            .attr("class", "axis-title")
+            .style("text-anchor", "middle")
+            .text(labelY);
     }
 }
 
-// 专门画极坐标的轴
+function drawStreamAreas(xScale, yScale, series) {
+    const area = d3.area()
+        .x(d => xScale(d.data.year))
+        .y0(d => yScale(d[0]))
+        .y1(d => yScale(d[1]))
+        .curve(d3.curveBasis);
+
+    d3.select("#overlay-svg")
+        .append("g")
+        .selectAll("path")
+        .data(series)
+        .join("path")
+        .attr("d", area)
+        .attr("fill", d => state.colorScale(d.key))
+        .attr("opacity", 0.15);
+}
+
 function drawRadialAxes(cx, cy, rScale, aScale) {
     const svg = d3.select("#overlay-svg");
     const g = svg.append("g").attr("transform", `translate(${cx}, ${cy})`);
 
-    // 画同心圆 (零件数刻度)
     const ticks = [10, 100, 1000, 5000];
     ticks.forEach(t => {
         const r = rScale(t);
@@ -278,7 +329,6 @@ function drawRadialAxes(cx, cy, rScale, aScale) {
             .style("text-anchor", "middle").style("fill", "#666").style("font-size", "10px");
     });
 
-    // 画放射线 (年份刻度)
     const years = [1970, 1980, 1990, 2000, 2010];
     years.forEach(y => {
         const angle = aScale(y);
@@ -301,8 +351,8 @@ function drawRadialAxes(cx, cy, rScale, aScale) {
 // ============================================================================
 function animate() {
     const ctx = state.ctx;
-    // 缓动系数 (0.1 = 较慢平滑)
     const ease = 0.1;
+    const jitterStrength = 0.5;
 
     ctx.clearRect(0, 0, width, height);
     ctx.save();
@@ -310,9 +360,16 @@ function animate() {
     ctx.scale(state.transform.k, state.transform.k);
 
     state.sets.forEach(d => {
-        // 插值动画
-        d.x += (d.tx - d.x) * ease;
-        d.y += (d.ty - d.y) * ease;
+        let targetX = d.tx;
+        let targetY = d.ty;
+
+        if (state.currentLayout === 'bar' && d.alpha > 0.1) {
+            targetX += (Math.random() - 0.5) * jitterStrength;
+            targetY += (Math.random() - 0.5) * jitterStrength;
+        }
+
+        d.x += (targetX - d.x) * ease;
+        d.y += (targetY - d.y) * ease;
 
         if (d.alpha < 0.01) return;
 
@@ -328,14 +385,14 @@ function animate() {
 }
 
 function setupInteraction(canvas) {
-    // Zoom
+    /*
     const zoom = d3.zoom().scaleExtent([0.8, 5]).on("zoom", e => {
         state.transform = e.transform;
-        d3.select("#overlay-svg g").attr("transform", e.transform); // 轴同步缩放 (简单版)
+        d3.select("#overlay-svg g").attr("transform", e.transform);
     });
     d3.select(".vis-container").call(zoom);
+    */
 
-    // Hover
     d3.select(".vis-container").on("mousemove", e => {
         const [mx, my] = d3.pointer(e);
         const t = state.transform;
@@ -345,7 +402,6 @@ function setupInteraction(canvas) {
         let found = null;
         for (let i = state.sets.length - 1; i >= 0; i--) {
             const d = state.sets[i];
-            // 简单的圆形碰撞检测
             if (d.alpha > 0.1 && (d.x - x) ** 2 + (d.y - y) ** 2 < (d.r + 4) ** 2) {
                 found = d;
                 break;
@@ -372,6 +428,7 @@ function setupInteraction(canvas) {
 
 function renderLegend(stats) {
     const el = document.getElementById("legend-container");
+    el.innerHTML = '';
     stats.forEach(d => {
         const div = document.createElement("div");
         div.className = "legend-item";
