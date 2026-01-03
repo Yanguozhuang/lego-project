@@ -1,7 +1,7 @@
 // ============================================================================
 // 全局配置
 // ============================================================================
-const margin = { top: 80, right: 50, bottom: 100, left: 80 };
+const margin = { top: 80, right: 60, bottom: 100, left: 80 };
 let width = 0, height = 0;
 
 const state = {
@@ -13,7 +13,7 @@ const state = {
     themeStats: [],
 
     // 交互状态
-    barMode: 'drop', // 'drop' (折叠) or 'slice' (切片)
+    barMode: 'drop',
     filterYear: 1950,
     activeTheme: null,
     hoveredSet: null,
@@ -97,7 +97,7 @@ function processData(sets, themes) {
     const themeCounts = d3.rollup(rawSets, v => v.length, d => getRoot(d.theme_id));
     state.themeStats = Array.from(themeCounts, ([key, count]) => ({ key, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 10); // 严格 Top 10
+        .slice(0, 10); // Top 10
 
     const topThemes = state.themeStats.map(d => d.key);
 
@@ -117,8 +117,8 @@ function processData(sets, themes) {
             x: width / 2, y: height / 2,
             tx: width / 2, ty: height / 2,
 
-            // 渲染属性
-            r: Math.sqrt(+d.num_parts) * 0.15 + 1.2,
+            // 渲染属性 (稍微调大一点以便填满大图表)
+            r: Math.sqrt(+d.num_parts) * 0.18 + 1.8,
             alpha: 1,
             currAlpha: 0,
 
@@ -149,17 +149,14 @@ window.switchLayout = function (mode) {
     const meta = {
         'bar': { t: 'Top 10 榜单', h: '• [时光折叠]：过滤年份\n• [单年切片]：查看特定年份' },
         'timeline': { t: '历史演变长河', h: '• 静态流图展示\n• 点击图例筛选主题' },
-        'radial': { t: '复杂性雷达', h: '• 角度=年份，半径=复杂度\n• 拖动滑块查看发展过程' },
-        'complexity': { t: '主题复杂度层级', h: '• Y轴=零件数 (Log Scale)\n• 悬停显示横向对比参考线' }
+        'radial': { t: '复杂性雷达', h: '• 角度=年份，半径=复杂度\n• 时间轴在外圈，展示复杂度膨胀' },
+        'distribution': { t: '复杂度分布峰峦', h: '• X轴=零件数 (对数)，Y轴=套装数量\n• 揭示“长尾效应”和主题分布差异' }
     };
     document.getElementById("current-view-name").innerText = meta[mode].t;
     document.getElementById("interaction-hint").innerText = meta[mode].h;
 
     const slider = document.getElementById("slider-controls");
     const barCtrls = document.getElementById("bar-controls");
-
-    // 隐藏辅助线
-    document.getElementById("complexity-guide-line").style.opacity = 0;
 
     d3.select("#overlay-svg").selectAll("*").remove();
 
@@ -177,7 +174,7 @@ window.switchLayout = function (mode) {
         slider.classList.add("hidden");
         barCtrls.classList.add("hidden");
         if (mode === 'timeline') layoutTimeline();
-        else if (mode === 'complexity') layoutComplexity();
+        else if (mode === 'distribution') layoutDistribution();
     }
 
     // 重置年份
@@ -188,7 +185,6 @@ window.switchLayout = function (mode) {
     state.transform = d3.zoomIdentity;
 };
 
-// ★★★ 模式切换逻辑 ★★★
 window.setBarMode = function (mode) {
     state.barMode = mode;
     document.querySelectorAll(".toggle-btn").forEach(b => b.classList.remove("active"));
@@ -204,7 +200,7 @@ window.setBarMode = function (mode) {
     }
 };
 
-// === Chart 1: Bar Chart (Top 10 Only, Floating) ===
+// === Chart 1: Bar Chart ===
 function layoutBarChart() {
     const x = d3.scaleBand()
         .domain(state.themeStats.map(d => d.key))
@@ -225,16 +221,14 @@ function layoutBarChart() {
             d.ty = yPos + Math.random() * (height - margin.bottom - yPos);
             d.alpha = 1;
         } else {
-            d.tx = width / 2;
-            d.ty = height + 100;
-            d.alpha = 0;
+            d.tx = width / 2; d.ty = height + 100; d.alpha = 0;
         }
     });
 
     drawAxes(x, y, "LEGO 主题 (Top 10)", "套装数量");
 }
 
-// === Chart 2: Timeline (Original, Full Data) ===
+// === Chart 2: Timeline ===
 function layoutTimeline() {
     const topThemes = state.themeStats.map(d => d.key);
     const countsByYear = d3.rollup(state.sets, v => v.length, d => d.year, d => d.theme);
@@ -271,24 +265,21 @@ function layoutTimeline() {
             d.ty = y(y0) + Math.random() * (y(y1) - y(y0));
             d.alpha = 1;
         } else {
-            d.tx = width / 2; d.ty = height + 50;
-            d.alpha = 0;
+            d.tx = width / 2; d.ty = height + 50; d.alpha = 0;
         }
     });
     drawAxes(x, y, "发行年份", "套装总数");
     drawStreamAreas(x, y, stackedSeries);
 }
 
-// === Chart 3: Radial (With Time Axis) ===
+// === Chart 3: Radial ===
 function layoutRadial() {
     const centerX = width / 2;
     const centerY = height / 2;
-    // 角度 = 年份
     const angleScale = d3.scaleLinear()
         .domain([1950, 2017])
         .range([-Math.PI / 2, Math.PI * 1.5]);
 
-    // 半径 = 复杂度 (Log Scale)
     const radiusScale = d3.scaleLog()
         .domain([1, d3.max(state.sets, d => d.parts)])
         .range([50, Math.min(width, height) / 2 - 50]);
@@ -305,43 +296,56 @@ function layoutRadial() {
     drawRadialComplexityCircles(centerX, centerY, radiusScale);
 }
 
-// === Chart 4: Complexity Stratum (New) ===
-function layoutComplexity() {
-    // X轴 = 主题 (Top 10)
-    const x = d3.scaleBand()
-        .domain(state.themeStats.map(d => d.key))
-        .range([margin.left, width - margin.right])
-        .padding(1);
-
-    // Y轴 = 零件数 (Log Scale)
-    const y = d3.scaleLog()
+// === Chart 4: Complexity Distribution (Visual Boost) ===
+function layoutDistribution() {
+    // X轴: 零件数 (Log Scale) - 铺满全屏
+    const x = d3.scaleLog()
         .domain([1, d3.max(state.sets, d => d.parts)])
-        .range([height - margin.bottom, margin.top]);
+        .range([margin.left, width - margin.right]);
+
+    // 分箱逻辑 (Histogram)
+    const binCount = 80; // 更多的桶，更细致的分布
+    const minLog = Math.log(1);
+    const maxLog = Math.log(d3.max(state.sets, d => d.parts));
+    const binWidth = (maxLog - minLog) / binCount;
+
+    // 统计每个桶的高度
+    const bins = new Array(binCount).fill(0);
+
+    // 视觉堆叠参数
+    const stackHeight = 6; // 粒子高度增加，让山峰更高
+    const groundY = height - margin.bottom;
+
+    // 为了美观，先打乱顺序，避免同一颜色的粒子完全扎堆（虽然扎堆也有好处）
+    // 但为了让分布更自然，我们保持原序，这样同主题的会聚在一起
 
     state.sets.forEach(d => {
-        if (d.isTop10) {
-            const centerX = x(d.theme) + x.bandwidth() / 2;
-            d.tx = centerX + (Math.random() - 0.5) * 40;
-            d.ty = y(d.parts);
-            d.alpha = 1;
-        } else {
-            d.tx = width / 2;
-            d.ty = height + 100;
-            d.alpha = 0;
-        }
+        const valLog = Math.log(d.parts > 0 ? d.parts : 1);
+        let binIdx = Math.floor((valLog - minLog) / binWidth);
+        if (binIdx < 0) binIdx = 0;
+        if (binIdx >= binCount) binIdx = binCount - 1;
+
+        // 计算坐标：X轴在桶内随机，Y轴堆叠
+        const binCenterX = x(Math.exp(minLog + (binIdx + 0.5) * binWidth));
+        // 桶宽对应的像素宽，大概估算
+        const pixelBinWidth = (width - margin.left - margin.right) / binCount;
+
+        d.tx = binCenterX + (Math.random() - 0.5) * pixelBinWidth;
+        d.ty = groundY - (bins[binIdx] * stackHeight) - 3; // 向上堆叠
+        d.alpha = 1;
+
+        bins[binIdx]++;
     });
 
-    drawAxes(x, null, "LEGO 主题 (Top 10)", "零件数 (复杂度 Log Scale)");
+    // 绘制坐标轴 (Y轴不需要刻度，看高度即可)
+    drawAxes(x, null, "零件数量 (复杂度, Log Scale)", "套装分布密度 (Frequency)");
 
-    // Y轴网格线
+    // 绘制辅助网格线，增强可读性
     const svg = d3.select("#overlay-svg g");
-    const axisY = d3.axisLeft(y).ticks(5, d3.format("~s")).tickSize(-width + margin.left + margin.right);
-    svg.append("g")
-        .attr("class", "grid-y")
-        .call(axisY)
-        .attr("transform", `translate(0, 0)`)
-        .style("stroke-dasharray", "2,2")
-        .style("opacity", 0.3);
+    const xAxisGrid = d3.axisBottom(x).tickSize(-height + margin.top + margin.bottom).tickFormat("");
+    svg.append("g").attr("class", "grid-line")
+        .attr("transform", `translate(0, ${height - margin.bottom})`)
+        .call(xAxisGrid);
 }
 
 // ============================================================================
@@ -350,14 +354,22 @@ function layoutComplexity() {
 function drawAxes(scaleX, scaleY, labelX, labelY) {
     const svg = d3.select("#overlay-svg");
     const g = svg.append("g");
-    const axisX = d3.axisBottom(scaleX).tickFormat(d3.format("d")).ticks(width / 80);
-    if (state.currentLayout === 'bar' || state.currentLayout === 'complexity') axisX.tickFormat(d => d);
+
+    // X轴
+    let axisX;
+    if (state.currentLayout === 'distribution') {
+        axisX = d3.axisBottom(scaleX).ticks(10, d3.format("~s")); // Log scale format
+    } else {
+        axisX = d3.axisBottom(scaleX).tickFormat(d3.format("d")).ticks(width / 80);
+        if (state.currentLayout === 'bar') axisX.tickFormat(d => d);
+    }
 
     g.append("g").attr("transform", `translate(0, ${height - margin.bottom})`)
         .attr("class", "axis").call(axisX)
         .append("text").attr("x", width / 2).attr("y", 40).attr("class", "axis-title")
         .attr("text-anchor", "middle").text(labelX);
 
+    // Y轴
     if (scaleY) {
         const axisY = d3.axisLeft(scaleY);
         if (state.currentLayout === 'bar' || state.currentLayout === 'timeline') axisY.ticks(5, d3.format("~s"));
@@ -366,8 +378,9 @@ function drawAxes(scaleX, scaleY, labelX, labelY) {
             .append("text").attr("transform", "rotate(-90)").attr("y", -50)
             .attr("x", -(height / 2)).attr("dy", "1em").attr("class", "axis-title")
             .style("text-anchor", "middle").text(labelY);
-    } else if (state.currentLayout === 'complexity') {
-        g.append("text").attr("transform", "rotate(-90)").attr("y", margin.left - 50)
+    } else if (state.currentLayout === 'distribution') {
+        // 分布图 Y 轴标题
+        g.append("text").attr("transform", "rotate(-90)").attr("y", margin.left - 40)
             .attr("x", -(height / 2)).attr("dy", "1em").attr("class", "axis-title")
             .style("text-anchor", "middle").text(labelY);
     }
@@ -382,19 +395,15 @@ function drawStreamAreas(xScale, yScale, series) {
 function drawRadialTimeAxis(cx, cy, angleScale) {
     const svg = d3.select("#overlay-svg");
     const g = svg.append("g").attr("transform", `translate(${cx}, ${cy})`);
-    const rMax = Math.min(width, height) / 2 - 30;
+    const rMax = Math.min(width, height) / 2 - 50;
 
     const decades = [1950, 1960, 1970, 1980, 1990, 2000, 2010];
     decades.forEach(y => {
         const a = angleScale(y);
         const x = Math.cos(a) * rMax;
         const yPos = Math.sin(a) * rMax;
-        g.append("line").attr("x1", 0).attr("y1", 0).attr("x2", x).attr("y2", yPos)
-            .attr("stroke", "#333").attr("stroke-dasharray", "2,2");
-        g.append("text").attr("x", x * 1.1).attr("y", yPos * 1.1)
-            .text(y).attr("class", "axis-text")
-            .attr("fill", "#22d3ee")
-            .attr("text-anchor", "middle").attr("alignment-baseline", "middle");
+        g.append("line").attr("x1", 0).attr("y1", 0).attr("x2", x).attr("y2", yPos).attr("stroke", "#333").attr("stroke-dasharray", "2,2");
+        g.append("text").attr("x", x * 1.1).attr("y", yPos * 1.1).text(y).attr("class", "axis-text").attr("fill", "#f59e0b").attr("text-anchor", "middle").attr("alignment-baseline", "middle");
     });
 }
 function drawRadialComplexityCircles(cx, cy, rScale) {
@@ -402,8 +411,7 @@ function drawRadialComplexityCircles(cx, cy, rScale) {
     [10, 100, 1000, 5000].forEach(parts => {
         const r = rScale(parts);
         svg.append("circle").attr("r", r).attr("class", "grid-circle");
-        svg.append("text").attr("y", -r - 5).text(parts).attr("class", "axis-text")
-            .attr("text-anchor", "middle").style("font-size", "9px");
+        svg.append("text").attr("y", -r - 5).text(parts + "p").attr("class", "axis-text").attr("text-anchor", "middle").style("font-size", "9px");
     });
 }
 
@@ -427,15 +435,12 @@ function animate() {
     const ctx = state.ctx;
     ctx.clearRect(0, 0, width, height);
 
-    const guideLine = document.getElementById("complexity-guide-line");
-    let showGuide = false;
-
     state.sets.forEach(d => {
         let targetX = d.tx;
         let targetY = d.ty;
         let targetAlpha = d.alpha;
 
-        // 1. 图表 1: 浮动效果 (Floating)
+        // 1. 图表 1: 浮动效果
         if (state.currentLayout === 'bar' && targetAlpha > 0.1) {
             targetY += Math.sin(Date.now() * 0.002 + d.index) * 2;
         }
@@ -451,7 +456,7 @@ function animate() {
         // 3. 交互: 单年切片 (仅 1)
         if (state.currentLayout === 'bar' && state.barMode === 'slice') {
             if (d.year !== state.filterYear) {
-                targetAlpha = 0.02; // 只保留微弱痕迹
+                targetAlpha = 0.02;
             } else {
                 targetAlpha = 1;
             }
@@ -459,15 +464,6 @@ function animate() {
 
         // 4. 交互: 图例筛选
         if (state.activeTheme && d.theme !== state.activeTheme) targetAlpha *= 0.1;
-
-        // 5. 交互: 复杂度辅助线 (Chart 4)
-        if (state.currentLayout === 'complexity' && state.hoveredSet) {
-            if (d === state.hoveredSet) {
-                showGuide = true;
-                guideLine.style.top = (state.hoveredSet.y) + "px";
-            }
-            if (d !== state.hoveredSet) targetAlpha *= 0.5;
-        }
 
         // 运动插值
         d.x += (targetX - d.x) * 0.1;
@@ -493,9 +489,6 @@ function animate() {
         ctx.fill();
         ctx.shadowBlur = 0;
     });
-
-    // 更新辅助线显隐
-    guideLine.style.opacity = showGuide ? 1 : 0;
 
     requestAnimationFrame(animate);
 }

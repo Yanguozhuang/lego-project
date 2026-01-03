@@ -12,7 +12,7 @@
 <body>
   <div id="loading">
     <div class="loader"></div>
-    <div class="loading-text">正在重构乐高宇宙...</div>
+    <div class="loading-text">正在构建乐高多维宇宙...</div>
   </div>
 
   <div class="container">
@@ -25,16 +25,18 @@
 
       <div class="controls">
         <div class="control-group">
-          <label>分析透镜 (Perspectives)</label>
+          <label>分析透镜</label>
 
+          <!-- 视图 1 -->
           <button class="btn active" onclick="switchLayout('bar')">
             <span class="icon">📊</span>
             <div class="btn-text">
               <strong>Top 10 榜单</strong>
-              <small>动态浮动堆叠 (Floating Stack)</small>
+              <small>动态堆叠 (Floating Stack)</small>
             </div>
           </button>
 
+          <!-- 视图 2 -->
           <button class="btn" onclick="switchLayout('timeline')">
             <span class="icon">🌊</span>
             <div class="btn-text">
@@ -43,6 +45,7 @@
             </div>
           </button>
 
+          <!-- 视图 3 -->
           <button class="btn" onclick="switchLayout('radial')">
             <span class="icon">🕸️</span>
             <div class="btn-text">
@@ -51,11 +54,12 @@
             </div>
           </button>
 
-          <button class="btn" onclick="switchLayout('complexity')">
-            <span class="icon">🧬</span>
+          <!-- 视图 4 (视觉强化版) -->
+          <button class="btn" onclick="switchLayout('distribution')">
+            <span class="icon">🏔️</span>
             <div class="btn-text">
-              <strong>主题复杂度层级</strong>
-              <small>垂直分布 (Vertical Stratum)</small>
+              <strong>复杂度分布峰峦</strong>
+              <small>全景直方图 (Histogram)</small>
             </div>
           </button>
         </div>
@@ -66,7 +70,7 @@
             <!-- 动态提示 -->
           </div>
 
-          <!-- ★★★ 修复：图表1 模式切换按钮 ★★★ -->
+          <!-- 图表1 专用控制 -->
           <div id="bar-controls" class="sub-controls hidden">
             <div class="toggle-label">数据模式:</div>
             <div class="toggle-group">
@@ -87,7 +91,7 @@
       </div>
 
       <div class="legend-panel">
-        <h4>主题图例 (点击筛选)</h4>
+        <h4>主题图例 (点击高亮)</h4>
         <div id="legend-container"></div>
       </div>
 
@@ -108,9 +112,6 @@
       <canvas id="main-canvas"></canvas>
       <svg id="overlay-svg"></svg>
       <div id="tooltip" class="tooltip"></div>
-
-      <!-- 辅助线 (仅图表4使用) -->
-      <div id="complexity-guide-line" class="guide-line"></div>
     </div>
   </div>
 

@@ -4,6 +4,7 @@
     --text-main: #f1f5f9;
     --text-dim: #94a3b8;
     --accent: #f59e0b;
+    /* 琥珀色 */
     --accent-glow: rgba(245, 158, 11, 0.4);
     --border: #334155;
     --btn-hover: #334155;
@@ -327,17 +328,10 @@ svg {
     stroke: var(--border);
 }
 
-/* Complexity Guide Line */
-.guide-line {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.3);
-    border-top: 1px dashed rgba(255, 255, 255, 0.5);
-    pointer-events: none;
-    opacity: 0;
-    z-index: 5;
+.grid-line {
+    stroke: var(--border);
+    stroke-dasharray: 2;
+    opacity: 0.2;
 }
 
 /* Tooltip & Loader */
