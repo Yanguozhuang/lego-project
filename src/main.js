@@ -510,10 +510,10 @@ function setupInteraction(canvas) {
         if (found) {
             tip.style("opacity", 1).style("left", e.pageX + 15 + "px").style("top", e.pageY + 15 + "px")
                 .html(`
-                   <strong style="color:${found.color}">● ${found.theme}</strong><br>
-                   ${found.name}<br>
-                   <small>${found.year} | ${found.parts} parts</small>
-               `);
+                    <strong style="color:${found.color}">● ${found.theme}</strong><br>
+                    ${found.name}<br>
+                    <small>${found.year} | ${found.parts} parts</small>
+                `);
             document.body.style.cursor = "pointer";
         } else {
             tip.style("opacity", 0);
